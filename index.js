@@ -11,8 +11,7 @@ const {
   ChannelType,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  PermissionFlagsBits
+  ButtonStyle
 } = require("discord.js");
 
 const dgram = require("dgram");
@@ -28,7 +27,7 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
 });
 
-const PREFIX = "!";
+const PREFIX = "e!";
 const BOT_NAME = "Cubixorasmp Guard";
 
 const MC_IP = "cubixorasmp.play.hosting";
@@ -110,7 +109,7 @@ const slashCommands = [
   new SlashCommandBuilder()
     .setName("ticket-kur")
     .setDescription("Destek talebi (ticket) sistemini kurar")
-    .addChannelOption(opt => opt.setName("kanal").setDescription("Ticket kanalını seçin").addChannelTypes(ChannelType.GuildText).setRequired(true)),
+    .addChannelOption(opt => opt.setName("kanal").setDescription("Ticket kanalı").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder()
     .setName("dc-ceza")
     .setDescription("Discord ceza log kanalını ayarlar")
@@ -121,8 +120,8 @@ const slashCommands = [
     .addChannelOption(opt => opt.setName("kanal").setDescription("Log kanalı").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder()
     .setName("mcsohbet")
-    .setDescription("Minecraft oyuncu giriş-çıkış ve sohbet log kanalını ayarlar")
-    .addChannelOption(opt => opt.setName("kanal").setDescription("Log kanalı").addChannelTypes(ChannelType.GuildText).setRequired(true))
+    .setDescription("Minecraft oyuncu giriş-çıkış ve sohbet kanalını ayarlar")
+    .addChannelOption(opt => opt.setName("kanal").setDescription("Sohbet/Log kanalı").addChannelTypes(ChannelType.GuildText).setRequired(true))
 ];
 
 client.once("ready", async () => {
@@ -144,7 +143,7 @@ client.once("ready", async () => {
   }, 30000);
 });
 
-// Otomatik Korumalar ve Loglar
+// Otomatik Korumalar ve Küfür/Reklam Mute Logları
 client.on("messageCreate", async message => {
   if (!message.guild || message.author.bot) return;
 
@@ -152,22 +151,21 @@ client.on("messageCreate", async message => {
   const lower = content.toLowerCase();
   const settings = getSettings(message.guild.id);
 
-  // 1. Reklam Koruması (1 Gün Mute)
+  // 1. Reklam Koruması
   const inviteRegex = /(discord\.(gg|io|me|li)|discordapp\.com\/invite|discord\.com\/invite)/i;
   if (inviteRegex.test(content) && !hasStaffPermission(message.member)) {
     try {
       await message.delete();
-      const duration = 24 * 60 * 60 * 1000;
-      await message.member.timeout(duration, "Reklam / Davet linki paylaşımı");
+      await message.member.timeout(24 * 60 * 60 * 1000, "Reklam / Davet linki paylaşımı");
       
       if (settings.dcLogChannel) {
         const logChan = message.guild.channels.cache.get(settings.dcLogChannel);
         if (logChan) {
           const embed = new EmbedBuilder()
             .setColor(0xed4245)
-            .setTitle("🔇 OTOMATİK SUSTURMA (MUTE) — REKLAM")
+            .setTitle("🔇 OTOMATİK SUSTURMA (MUTE)")
             .addFields(
-              { name: "👤 Cezalandırılan Üye", value: `${message.author} (${message.author.tag})` },
+              { name: "👤 Cezalandırılan Üye", value: `${message.author} (<@${message.author.id}>)` },
               { name: "🛡️ Yetkili", value: "Otomatik Sistem" },
               { name: "⏰ Mute Süresi", value: "1 Gün" },
               { name: "📄 Ceza Sebebi", value: "Sunucu / Davet Linki Paylaşımı" }
@@ -181,22 +179,21 @@ client.on("messageCreate", async message => {
     return;
   }
 
-  // 2. Küfür / Argo Koruması (30 Dakika Mute)
-  const badWords = ["küfür1", "küfür2", "amk", "aq", "orospu"]; // Kelimeleri düzenleyebilirsin
+  // 2. Küfür Koruması
+  const badWords = ["küfür1", "küfür2", "amk", "aq", "orospu"];
   if (badWords.some(w => lower.includes(w)) && !hasStaffPermission(message.member)) {
     try {
       await message.delete();
-      const duration = 30 * 60 * 1000;
-      await message.member.timeout(duration, "Küfür / Argo kullanımı");
+      await message.member.timeout(30 * 60 * 1000, "Küfür / Argo kullanımı");
 
       if (settings.dcLogChannel) {
         const logChan = message.guild.channels.cache.get(settings.dcLogChannel);
         if (logChan) {
           const embed = new EmbedBuilder()
             .setColor(0xfee75c)
-            .setTitle("🔇 OTOMATİK SUSTURMA (MUTE) — KÜFÜR")
+            .setTitle("🔇 OTOMATİK SUSTURMA (MUTE)")
             .addFields(
-              { name: "👤 Cezalandırılan Üye", value: `${message.author} (${message.author.tag})` },
+              { name: "👤 Cezalandırılan Üye", value: `${message.author} (<@${message.author.id}>)` },
               { name: "🛡️ Yetkili", value: "Otomatik Sistem" },
               { name: "⏰ Mute Süresi", value: "30 Dakika" },
               { name: "📄 Ceza Sebebi", value: "Küfür / Argo Kullanımı" }
@@ -215,14 +212,15 @@ client.on("messageCreate", async message => {
   const args = content.slice(PREFIX.length).trim().split(/\s+/);
   const command = args.shift()?.toLowerCase();
 
-  // !mute @kullanici 30m sebep
+  // e!mute @kullanici 30m sebep
   if (command === "mute") {
     if (!hasStaffPermission(message.member)) return message.reply("Bu komut için yetkin yok.");
     const target = message.mentions.members.first();
-    const duration = parseDuration(args[1] || "30m");
+    const durationText = args[1] || "30m";
+    const duration = parseDuration(durationText);
     const reason = args.slice(2).join(" ") || "Sebep belirtilmedi";
 
-    if (!target || !duration) return message.reply("Kullanım: `!mute @kullanıcı 30m [sebep]`");
+    if (!target || !duration) return message.reply("Kullanım: `e!mute @kullanıcı 30m [sebep]`");
 
     try {
       await target.timeout(duration, reason);
@@ -233,11 +231,11 @@ client.on("messageCreate", async message => {
         if (logChan) {
           const embed = new EmbedBuilder()
             .setColor(0xed4245)
-            .setTitle("🔇 DİSCORD CEZA — MUTE")
+            .setTitle("🔇 Discord Ceza — MUTE")
             .addFields(
               { name: "👤 Cezalandırılan Üye", value: `${target} (${target.user.tag})` },
               { name: "🛡️ Yetkili", value: `${message.author} (${message.author.tag})` },
-              { name: "⏰ Mute Süresi", value: `${args[1]}` },
+              { name: "⏰ Mute Süresi", value: durationText },
               { name: "📄 Ceza Sebebi", value: reason }
             )
             .setFooter({ text: `${BOT_NAME} Ceza Takip Sistemi` })
@@ -250,13 +248,13 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // !ban @kullanici sebep
+  // e!ban @kullanici sebep
   if (command === "ban") {
     if (!hasStaffPermission(message.member)) return message.reply("Bu komut için yetkin yok.");
     const target = message.mentions.members.first();
     const reason = args.slice(1).join(" ") || "Sebep belirtilmedi";
 
-    if (!target) return message.reply("Kullanım: `!ban @kullanıcı [sebep]`");
+    if (!target) return message.reply("Kullanım: `e!ban @kullanıcı [sebep]`");
 
     try {
       await target.ban({ reason });
@@ -267,7 +265,7 @@ client.on("messageCreate", async message => {
         if (logChan) {
           const embed = new EmbedBuilder()
             .setColor(0x990000)
-            .setTitle("🚨 DİSCORD CEZA — BAN")
+            .setTitle("🚨 Discord Ceza — BAN")
             .addFields(
               { name: "👤 Yasaklanan Üye", value: `${target.user.tag}` },
               { name: "🛡️ Yetkili", value: `${message.author.tag}` },
@@ -283,7 +281,7 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // !sil (1 - 1000 arası)
+  // e!sil (1 - 1000 arası)
   if (command === "sil") {
     if (!hasStaffPermission(message.member)) return message.reply("Bu komut için yetkin yok.");
     const count = parseInt(args[0]);
@@ -348,7 +346,7 @@ client.on("interactionCreate", async interaction => {
 
     if (interaction.commandName === "mc-ceza") {
       settings.mcLogChannel = interaction.options.getChannel("kanal").id;
-      return interaction.reply({ content: `✅ Minecraft log kanalı ayarlandı.`, ephemeral: true });
+      return interaction.reply({ content: `✅ Minecraft ceza log kanalı ayarlandı.`, ephemeral: true });
     }
 
     if (interaction.commandName === "mcsohbet") {
