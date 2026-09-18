@@ -1,7 +1,7 @@
 {
-  "name": "cubixorasmpticek",
+  "name": "cubixorasmp-ticket",
   "version": "1.0.0",
-  "private": true,
+  "description": "Cubixorasmp Ticket and Guard Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
